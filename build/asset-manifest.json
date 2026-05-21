@@ -1,0 +1,12 @@
+{
+  "files": {
+    "main.js": "/takeaway-app/static/js/main.ea7e8c29.js",
+    "static/js/453.8b06fdf2.chunk.js": "/takeaway-app/static/js/453.8b06fdf2.chunk.js",
+    "index.html": "/takeaway-app/index.html",
+    "main.ea7e8c29.js.map": "/takeaway-app/static/js/main.ea7e8c29.js.map",
+    "453.8b06fdf2.chunk.js.map": "/takeaway-app/static/js/453.8b06fdf2.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.ea7e8c29.js"
+  ]
+}
