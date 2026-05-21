@@ -1,1 +1,31 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/todayeatmudho/favicon.ico"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Web site created using create-react-app"/><link rel="apple-touch-icon" href="/todayeatmudho/logo192.png"/><link rel="manifest" href="/todayeatmudho/manifest.json"/><script src="https://cdn.tailwindcss.com"></script><title>辦公室外賣神器</title><script defer="defer" src="/todayeatmudho/static/js/main.94bfcb8a.js"></script></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>
+// 🔒 升級版代碼：需要輸入正確暗號才能重設
+const handleReset = async () => {
+  // 1. 彈出輸入框，要求輸入暗號
+  const password = window.prompt("請輸入管理員暗號以進行重設：");
+  
+  // 如果點取消，或者密碼不對，直接攔截！
+  if (password === null) return; 
+  if (password !== "kaho") { 
+    alert("暗號錯誤！你沒有權限重設數據。❌");
+    return;
+  }
+
+  // 2. 暗號正確，才執行原本的確認提示
+  if(!window.confirm("確定要重設數據，開啟全新的一天嗎？")) return;
+  
+  // 下面是原本的 Firebase 清空邏輯（保持不變）
+  const qSnapshot = await getDocs(collection(db, "systemState"));
+  if (!qSnapshot.empty) { 
+    await updateDoc(doc(db, "systemState", qSnapshot.docs[0].id), { stage: 'vote', winner: null }); 
+  }
+  for (let r of restaurants) { 
+    await updateDoc(doc(db, "restaurants", r.id), { votes: 0 }); 
+  }
+  const orderDocs = await getDocs(collection(db, "orders"));
+  orderDocs.forEach(async (d) => { 
+    await deleteDoc(doc(db, "orders", d.id)); 
+  }
+  );
+  setHasVoted(false);
+  alert("系統已成功重設，全新的一天開始囉！🚀");
+};
