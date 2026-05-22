@@ -212,7 +212,7 @@
       };
 
       const handleEndVote = async () => {
-        const password = window.prompt("請輸入管理員暗號以結束投票：");
+        const password = window.prompt("請輸入管理員暗號：");
 
         if (password !== "kaho") {
           return alert("暗號錯誤！❌");
@@ -398,12 +398,14 @@
                   )}
                 </div>
 
-                <button
-                  onClick={handleEndVote}
-                  className="w-full mt-auto py-3.5 bg-gray-950 hover:bg-black text-white font-bold rounded-xl text-sm transition-all shadow-md tracking-wider"
-                >
-                  結束投票 ➔
-                </button>
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={handleEndVote}
+                    className="text-[10px] text-gray-300 hover:text-gray-500 transition-all px-2 py-1"
+                  >
+                    管理
+                  </button>
+                </div>
               </div>
             )}
 
