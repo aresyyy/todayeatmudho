@@ -6,10 +6,9 @@
 
   <title>todayeatmudho</title>
 
-  <!-- App Icon / PWA 設定 -->
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./logo192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="./logo512.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon512.png" />
   <link rel="manifest" href="./manifest.json" />
 
   <meta name="theme-color" content="#F7D900" />
@@ -49,6 +48,36 @@
       transform: translateY(0px);
     }
 
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background-color: #F7D900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+
+    .loading-logo {
+      width: 210px;
+      height: auto;
+      animation: loadingPulse 1.2s ease-in-out infinite;
+    }
+
+    .loading-text {
+      margin-top: 18px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #1f2937;
+      letter-spacing: 0.12em;
+    }
+
+    .loading-dot {
+      display: inline-block;
+      animation: dotBlink 1.2s infinite;
+    }
+
     @keyframes pop {
       0% {
         transform: scale(0.95);
@@ -61,6 +90,37 @@
       }
     }
 
+    @keyframes loadingPulse {
+      0% {
+        transform: scale(0.96);
+        opacity: 0.75;
+      }
+
+      50% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(0.96);
+        opacity: 0.75;
+      }
+    }
+
+    @keyframes dotBlink {
+      0% {
+        opacity: 0.2;
+      }
+
+      50% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0.2;
+      }
+    }
+
     @media (max-width: 420px) {
       .logo-crop-box {
         height: 145px;
@@ -68,6 +128,10 @@
 
       .logo-crop-img {
         width: 18rem;
+      }
+
+      .loading-logo {
+        width: 190px;
       }
     }
   </style>
@@ -105,7 +169,23 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    function LoadingScreen() {
+      return (
+        <div className="loading-screen">
+          <img
+            src="./logo-full.png"
+            alt="todayeatmudho loading"
+            className="loading-logo"
+          />
+          <div className="loading-text">
+            載入中<span className="loading-dot">...</span>
+          </div>
+        </div>
+      );
+    }
+
     function App() {
+      const [isLoading, setIsLoading] = useState(true);
       const [stage, setStage] = useState("vote");
       const [restaurants, setRestaurants] = useState([]);
       const [hasVoted, setHasVoted] = useState(false);
@@ -117,6 +197,10 @@
       const [globalNotification, setGlobalNotification] = useState(null);
 
       useEffect(() => {
+        const loadingTimer = setTimeout(() => {
+          setIsLoading(false);
+        }, 1200);
+
         const unsubscribeVotes = onSnapshot(collection(db, "restaurants"), (snapshot) => {
           const rData = snapshot.docs.map((docItem) => ({
             id: docItem.id,
@@ -126,6 +210,8 @@
           setRestaurants(
             rData.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
           );
+
+          setIsLoading(false);
         });
 
         const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
@@ -160,9 +246,12 @@
 
             isFirstLoad = false;
           }
+
+          setIsLoading(false);
         });
 
         return () => {
+          clearTimeout(loadingTimer);
           unsubscribeVotes();
           unsubscribeOrders();
           unsubscribeStage();
@@ -313,256 +402,260 @@
       };
 
       return (
-        <div className="w-full flex flex-col flex-1">
+        <>
+          {isLoading && <LoadingScreen />}
 
-          {globalNotification && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-xl border border-gray-100">
-                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-                  📢
-                </div>
+          <div className="w-full flex flex-col flex-1">
 
-                <h3 className="text-xl font-bold text-gray-800">
-                  投票結果公布！
-                </h3>
+            {globalNotification && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-xl border border-gray-100">
+                  <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                    📢
+                  </div>
 
-                <p className="text-emerald-600 font-black text-lg mt-2 bg-emerald-50 py-2 px-4 rounded-xl inline-block">
-                  {globalNotification}
-                </p>
+                  <h3 className="text-xl font-bold text-gray-800">
+                    投票結果公布！
+                  </h3>
 
-                <p className="text-xs text-gray-400 mt-3">
-                  快啲去打開 KeeTa 睇餐牌落單啦！🍱
-                </p>
+                  <p className="text-emerald-600 font-black text-lg mt-2 bg-emerald-50 py-2 px-4 rounded-xl inline-block">
+                    {globalNotification}
+                  </p>
 
-                <button
-                  onClick={() => setGlobalNotification(null)}
-                  className="w-full mt-5 py-3 bg-gray-900 text-white font-bold rounded-xl text-sm shadow-md hover:bg-black transition-all"
-                >
-                  收到，即刻落單！ 🚀
-                </button>
-              </div>
-            </div>
-          )}
+                  <p className="text-xs text-gray-400 mt-3">
+                    快啲去打開 KeeTa 睇餐牌落單啦！🍱
+                  </p>
 
-          <div className="logo-crop-box">
-            <img
-              src="./logo192.png"
-              alt="todayeatmudho Logo"
-              className="logo-crop-img"
-            />
-          </div>
-
-          <div className="p-4 flex-1 flex flex-col bg-white">
-            {stage === "vote" && (
-              <div className="space-y-4 flex-1 flex flex-col">
-                <div className="text-center my-1">
-                  <span className="bg-amber-50 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-100/60">
-                    第一階段：今日食邊間？
-                  </span>
-                </div>
-
-                {restaurants.length === 0 && (
                   <button
-                    onClick={forceResetToNewRestaurants}
-                    className="w-full py-3.5 bg-red-500 text-white rounded-xl font-bold animate-pulse shadow-md"
+                    onClick={() => setGlobalNotification(null)}
+                    className="w-full mt-5 py-3 bg-gray-900 text-white font-bold rounded-xl text-sm shadow-md hover:bg-black transition-all"
                   >
-                    ⚠️ 雲端數據已清空，點擊一鍵初始化新餐廳
-                  </button>
-                )}
-
-                <div className="space-y-3 flex-1">
-                  {restaurants.map((r) =>
-                    r && r.name ? (
-                      <div
-                        key={r.id}
-                        className="flex bg-white border border-gray-100 p-3 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200"
-                      >
-                        <img
-                          src={r.imgUrl}
-                          alt={r.name}
-                          className="w-24 h-24 object-cover rounded-xl flex-shrink-0 border border-gray-50 shadow-inner"
-                        />
-
-                        <div className="flex-1 pl-3 flex flex-col justify-between">
-                          <div>
-                            <span className="font-extrabold text-base text-gray-800 block leading-tight">
-                              {r.name}
-                            </span>
-
-                            <a
-                              href={r.menuUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[11px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md mt-2 inline-flex items-center hover:bg-amber-100 transition-all"
-                            >
-                              🔍 睇 KeeTa 餐牌 ➔
-                            </a>
-                          </div>
-
-                          <div className="flex items-end justify-between mt-2">
-                            <div className="flex flex-col">
-                              <span className="text-[11px] text-gray-400">
-                                目前票數:{" "}
-                                <strong className="text-amber-600 text-xs font-black">
-                                  {r.votes || 0}
-                                </strong>{" "}
-                                票
-                              </span>
-
-                              {r.voters && r.voters.length > 0 && (
-                                <span className="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded mt-0.5 max-w-[140px] truncate">
-                                  👤 {r.voters.join(", ")}
-                                </span>
-                              )}
-                            </div>
-
-                            <button
-                              onClick={() => handleVote(r.id, r.votes, r.voters)}
-                              className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
-                                hasVoted
-                                  ? "bg-gray-100 text-gray-400"
-                                  : "bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
-                              }`}
-                            >
-                              {hasVoted ? "已投" : "👍 投一票"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null
-                  )}
-                </div>
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    onClick={handleEndVote}
-                    className="text-[10px] text-gray-300 hover:text-gray-500 transition-all px-2 py-1"
-                  >
-                    管理
+                    收到，即刻落單！ 🚀
                   </button>
                 </div>
               </div>
             )}
 
-            {stage === "order" && winner && (
-              <div className="space-y-4 flex-1 flex flex-col">
-                <div className="text-center">
-                  <span className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-100/60">
-                    第二階段：開飯落單
-                  </span>
+            <div className="logo-crop-box">
+              <img
+                src="./logo-full.png"
+                alt="todayeatmudho Logo"
+                className="logo-crop-img"
+              />
+            </div>
 
-                  <div className="flex items-center bg-emerald-50/40 border border-emerald-100 p-3 rounded-2xl mt-3 shadow-sm hover:border-gray-200 transition-all">
-                    <img
-                      src={winner.imgUrl}
-                      alt={winner.name}
-                      className="w-14 h-14 object-cover rounded-xl border border-white shadow-sm"
-                    />
-
-                    <div className="pl-3 text-left">
-                      <p className="text-[10px] font-bold text-emerald-600 tracking-wider uppercase">
-                        今日最高票精選
-                      </p>
-
-                      <h2 className="text-base font-black text-gray-800 leading-tight">
-                        {winner.name}
-                      </h2>
-                    </div>
-                  </div>
-
-                  <a
-                    href={winner.menuUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center w-full text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 py-3.5 rounded-xl mt-3 shadow-md transition-all tracking-wide"
-                  >
-                    🟢 打開 KeeTa 睇餐牌落單 ➔
-                  </a>
-                </div>
-
-                <form onSubmit={handleOrderSubmit} className="space-y-2 pt-1 relative">
-                  <input
-                    type="text"
-                    placeholder="你是誰？"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="想食咩主餐？（跟 KeeTa 名稱）"
-                    value={food}
-                    onChange={(e) => setFood(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="想飲咩？"
-                    value={drink}
-                    onChange={(e) => setDrink(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
-                  />
-
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl text-sm shadow-md hover:bg-amber-600 transition-all tracking-wider"
-                  >
-                    提交今日點餐 🚀
-                  </button>
-                </form>
-
-                <div className="relative my-1">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-100"></div>
-                  </div>
-
-                  <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
-                    <span className="bg-white px-3 text-gray-400 font-medium">
-                      今日落單名單 ({orders.length})
+            <div className="p-4 flex-1 flex flex-col bg-white">
+              {stage === "vote" && (
+                <div className="space-y-4 flex-1 flex flex-col">
+                  <div className="text-center my-1">
+                    <span className="bg-amber-50 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-100/60">
+                      第一階段：今日食邊間？
                     </span>
                   </div>
-                </div>
 
-                <div className="max-h-48 overflow-y-auto space-y-2 flex-1 relative">
-                  {orders.map((order, index) => (
-                    <div
-                      key={order.id || index}
-                      className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-gray-200 transition-all duration-300 transform selection:bg-amber-100"
+                  {restaurants.length === 0 && (
+                    <button
+                      onClick={forceResetToNewRestaurants}
+                      className="w-full py-3.5 bg-red-500 text-white rounded-xl font-bold animate-pulse shadow-md"
                     >
-                      <div>
-                        <span className="text-sm font-bold text-gray-700 block">
-                          {order.name}
-                        </span>
+                      ⚠️ 雲端數據已清空，點擊一鍵初始化新餐廳
+                    </button>
+                  )}
 
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block font-medium ${
-                            order.drink
-                              ? "bg-orange-50 text-orange-600 border border-orange-100/60"
-                              : "bg-gray-50 text-gray-400"
-                          }`}
+                  <div className="space-y-3 flex-1">
+                    {restaurants.map((r) =>
+                      r && r.name ? (
+                        <div
+                          key={r.id}
+                          className="flex bg-white border border-gray-100 p-3 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200"
                         >
-                          {order.drink ? `🥤 ${order.drink}` : "🚫 唔要飲品"}
-                        </span>
-                      </div>
+                          <img
+                            src={r.imgUrl}
+                            alt={r.name}
+                            className="w-24 h-24 object-cover rounded-xl flex-shrink-0 border border-gray-50 shadow-inner"
+                          />
 
-                      <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-100/40 px-3 py-1.5 rounded-xl">
-                        🍛 {order.food}
+                          <div className="flex-1 pl-3 flex flex-col justify-between">
+                            <div>
+                              <span className="font-extrabold text-base text-gray-800 block leading-tight">
+                                {r.name}
+                              </span>
+
+                              <a
+                                href={r.menuUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md mt-2 inline-flex items-center hover:bg-amber-100 transition-all"
+                              >
+                                🔍 睇 KeeTa 餐牌 ➔
+                              </a>
+                            </div>
+
+                            <div className="flex items-end justify-between mt-2">
+                              <div className="flex flex-col">
+                                <span className="text-[11px] text-gray-400">
+                                  目前票數:{" "}
+                                  <strong className="text-amber-600 text-xs font-black">
+                                    {r.votes || 0}
+                                  </strong>{" "}
+                                  票
+                                </span>
+
+                                {r.voters && r.voters.length > 0 && (
+                                  <span className="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded mt-0.5 max-w-[140px] truncate">
+                                    👤 {r.voters.join(", ")}
+                                  </span>
+                                )}
+                              </div>
+
+                              <button
+                                onClick={() => handleVote(r.id, r.votes, r.voters)}
+                                className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
+                                  hasVoted
+                                    ? "bg-gray-100 text-gray-400"
+                                    : "bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                                }`}
+                              >
+                                {hasVoted ? "已投" : "👍 投一票"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleEndVote}
+                      className="text-[10px] text-gray-300 hover:text-gray-500 transition-all px-2 py-1"
+                    >
+                      管理
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {stage === "order" && winner && (
+                <div className="space-y-4 flex-1 flex flex-col">
+                  <div className="text-center">
+                    <span className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-100/60">
+                      第二階段：開飯落單
+                    </span>
+
+                    <div className="flex items-center bg-emerald-50/40 border border-emerald-100 p-3 rounded-2xl mt-3 shadow-sm hover:border-gray-200 transition-all">
+                      <img
+                        src={winner.imgUrl}
+                        alt={winner.name}
+                        className="w-14 h-14 object-cover rounded-xl border border-white shadow-sm"
+                      />
+
+                      <div className="pl-3 text-left">
+                        <p className="text-[10px] font-bold text-emerald-600 tracking-wider uppercase">
+                          今日最高票精選
+                        </p>
+
+                        <h2 className="text-base font-black text-gray-800 leading-tight">
+                          {winner.name}
+                        </h2>
+                      </div>
+                    </div>
+
+                    <a
+                      href={winner.menuUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center w-full text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 py-3.5 rounded-xl mt-3 shadow-md transition-all tracking-wide"
+                    >
+                      🟢 打開 KeeTa 睇餐牌落單 ➔
+                    </a>
+                  </div>
+
+                  <form onSubmit={handleOrderSubmit} className="space-y-2 pt-1 relative">
+                    <input
+                      type="text"
+                      placeholder="你是誰？"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+                    />
+
+                    <input
+                      type="text"
+                      placeholder="想食咩主餐？（跟 KeeTa 名稱）"
+                      value={food}
+                      onChange={(e) => setFood(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+                    />
+
+                    <input
+                      type="text"
+                      placeholder="想飲咩？"
+                      value={drink}
+                      onChange={(e) => setDrink(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+                    />
+
+                    <button
+                      type="submit"
+                      className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl text-sm shadow-md hover:bg-amber-600 transition-all tracking-wider"
+                    >
+                      提交今日點餐 🚀
+                    </button>
+                  </form>
+
+                  <div className="relative my-1">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-100"></div>
+                    </div>
+
+                    <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
+                      <span className="bg-white px-3 text-gray-400 font-medium">
+                        今日落單名單 ({orders.length})
                       </span>
                     </div>
-                  ))}
-                </div>
+                  </div>
 
-                <button
-                  onClick={handleReset}
-                  className="w-full py-2 text-xs text-gray-300 hover:text-gray-400 text-center mt-1 transition-all"
-                >
-                  🔄 重設並開啟全新的一天
-                </button>
-              </div>
-            )}
+                  <div className="max-h-48 overflow-y-auto space-y-2 flex-1 relative">
+                    {orders.map((order, index) => (
+                      <div
+                        key={order.id || index}
+                        className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-gray-200 transition-all duration-300 transform selection:bg-amber-100"
+                      >
+                        <div>
+                          <span className="text-sm font-bold text-gray-700 block">
+                            {order.name}
+                          </span>
+
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block font-medium ${
+                              order.drink
+                                ? "bg-orange-50 text-orange-600 border border-orange-100/60"
+                                : "bg-gray-50 text-gray-400"
+                            }`}
+                          >
+                            {order.drink ? `🥤 ${order.drink}` : "🚫 唔要飲品"}
+                          </span>
+                        </div>
+
+                        <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-100/40 px-3 py-1.5 rounded-xl">
+                          🍛 {order.food}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleReset}
+                    className="w-full py-2 text-xs text-gray-300 hover:text-gray-400 text-center mt-1 transition-all"
+                  >
+                    🔄 重設並開啟全新的一天
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       );
     }
 
