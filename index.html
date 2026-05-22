@@ -82,63 +82,27 @@
     }
 
     @keyframes pop {
-      0% {
-        transform: scale(0.95);
-        opacity: 0;
-      }
-
-      100% {
-        transform: scale(1);
-        opacity: 1;
-      }
+      0% { transform: scale(0.95); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
     }
 
     @keyframes logoBounceIn {
-      0% {
-        transform: scale(0.35);
-        opacity: 0;
-      }
-
-      55% {
-        transform: scale(1.14);
-        opacity: 1;
-      }
-
-      75% {
-        transform: scale(0.94);
-      }
-
-      100% {
-        transform: scale(1);
-      }
+      0% { transform: scale(0.35); opacity: 0; }
+      55% { transform: scale(1.14); opacity: 1; }
+      75% { transform: scale(0.94); }
+      100% { transform: scale(1); }
     }
 
     @keyframes logoBreath {
-      0% {
-        transform: scale(1);
-      }
-
-      50% {
-        transform: scale(1.045);
-      }
-
-      100% {
-        transform: scale(1);
-      }
+      0% { transform: scale(1); }
+      50% { transform: scale(1.045); }
+      100% { transform: scale(1); }
     }
 
     @keyframes dotBlink {
-      0% {
-        opacity: 0.2;
-      }
-
-      50% {
-        opacity: 1;
-      }
-
-      100% {
-        opacity: 0.2;
-      }
+      0% { opacity: 0.2; }
+      50% { opacity: 1; }
+      100% { opacity: 0.2; }
     }
 
     @media (max-width: 420px) {
@@ -202,6 +166,16 @@
           </div>
         </div>
       );
+    }
+
+    function shuffleList(list) {
+      return [...list]
+        .map((item) => ({ ...item, random: Math.random() }))
+        .sort((a, b) => a.random - b.random)
+        .map((item, index) => ({
+          ...item,
+          sortOrder: index + 1
+        }));
     }
 
     function App() {
@@ -318,32 +292,38 @@
 
         const defaultList = [
           {
-            name: "🍜 金銘潮洲粉麵",
+            name: "🔥 火將軍外賣專門店",
             votes: 0,
             voters: [],
-            sortOrder: 1,
-            menuUrl: "https://www.foodpanda.hk/zh/restaurant/ko8x/kam-ming-restaurant-tuen-mun",
-            imgUrl: "https://i.imgur.com/KzX5zXF.png"
+            menuUrl: "https://url.mykeeta.com/OtCclkWz",
+            imgUrl: "./images/generalfire.jpeg"
           },
           {
-            name: "🍱 凝香居",
+            name: "🥤 四季冰室",
             votes: 0,
             voters: [],
-            sortOrder: 2,
-            menuUrl: "https://url.mykeeta.com/Xsfwrttz",
-            imgUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500"
+            menuUrl: "https://url.mykeeta.com/igw2zM6z",
+            imgUrl: "./images/seasonsdafe.jpeg"
           },
           {
-            name: "🇯🇵 阪神",
+            name: "🥛 上海豆漿大王",
             votes: 0,
             voters: [],
-            sortOrder: 3,
-            menuUrl: "https://url.mykeeta.com/uUdS4oez",
-            imgUrl: "https://images.unsplash.com/photo-1611143669185-af224c5e3252?w=500"
+            menuUrl: "https://url.mykeeta.com/enrsm48z",
+            imgUrl: "./images/bigbean.webp"
+          },
+          {
+            name: "🥟 小川滬拉麵小籠包",
+            votes: 0,
+            voters: [],
+            menuUrl: "https://url.mykeeta.com/KjB9tkUz",
+            imgUrl: "./images/siu.jpeg"
           }
         ];
 
-        for (let r of defaultList) {
+        const shuffledList = shuffleList(defaultList);
+
+        for (let r of shuffledList) {
           await addDoc(collection(db, "restaurants"), r);
         }
       };
