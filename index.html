@@ -1,24 +1,55 @@
 <!DOCTYPE html>
 <html lang="zh-HK">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🍱 辦公室外賣神器</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;500;700;900&display=swap" rel="stylesheet" />
+
   <style>
-    body { font-family: 'Noto Sans HK', sans-serif; background-color: #FAFAFA; }
-    .animate-pop { animation: pop 0.3s ease-out; }
-    @keyframes pop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    body {
+      font-family: 'Noto Sans HK', sans-serif;
+      background-color: #FAFAFA;
+    }
+
+    .animate-pop {
+      animation: pop 0.3s ease-out;
+    }
+
+    @keyframes pop {
+      0% {
+        transform: scale(0.95);
+        opacity: 0;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
   </style>
 </head>
+
 <body class="min-h-screen flex flex-col items-center py-6 px-4 selection:bg-amber-100">
 
   <div id="root" class="w-full max-w-md bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[680px] flex flex-col animate-pop"></div>
 
-  <script type="module">
+  <script type="text/babel" data-type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      onSnapshot,
+      updateDoc,
+      doc,
+      getDocs,
+      deleteDoc
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
     import React, { useState, useEffect } from "https://esm.sh/react@18.2.0";
     import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
 
@@ -35,229 +66,463 @@
     const db = getFirestore(app);
 
     function App() {
-      const [stage, setStage] = useState('vote');
+      const [stage, setStage] = useState("vote");
       const [restaurants, setRestaurants] = useState([]);
       const [hasVoted, setHasVoted] = useState(false);
       const [winner, setWinner] = useState(null);
       const [orders, setOrders] = useState([]);
-      const [name, setName] = useState('');
-      const [food, setFood] = useState('');
-      const [drink, setDrink] = useState('');
+      const [name, setName] = useState("");
+      const [food, setFood] = useState("");
+      const [drink, setDrink] = useState("");
       const [globalNotification, setGlobalNotification] = useState(null);
 
-      // 📥 即時監聽雲端數據
       useEffect(() => {
         const unsubscribeVotes = onSnapshot(collection(db, "restaurants"), (snapshot) => {
-          const rData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setRestaurants(rData.sort((a,b) => (a.sortOrder || 0) - (b.sortOrder || 0)));
+          const rData = snapshot.docs.map((docItem) => ({
+            id: docItem.id,
+            ...docItem.data()
+          }));
+
+          setRestaurants(
+            rData.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+          );
         });
 
         const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
-          const oData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const oData = snapshot.docs.map((docItem) => ({
+            id: docItem.id,
+            ...docItem.data()
+          }));
+
           setOrders(oData);
         });
 
-        // 🚨 🎯 企業級響鈴機制：監聽投票結果公布，觸發 Popup + 音效
         let isFirstLoad = true;
+
         const unsubscribeStage = onSnapshot(collection(db, "systemState"), (snapshot) => {
           if (!snapshot.empty) {
             const state = snapshot.docs[0].data();
-            if (!isFirstLoad && state.stage === 'order' && state.winner) {
+
+            if (!isFirstLoad && state.stage === "order" && state.winner) {
               try {
-                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+                const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav");
                 audio.play();
               } catch (e) {}
+
               setGlobalNotification(`今日精選餐廳：${state.winner.name}`);
             }
-            setStage(state.stage || 'vote');
-            if (state.winner) setWinner(state.winner);
+
+            setStage(state.stage || "vote");
+
+            if (state.winner) {
+              setWinner(state.winner);
+            }
+
             isFirstLoad = false;
           }
         });
 
-        return () => { unsubscribeVotes(); unsubscribeOrders(); unsubscribeStage(); };
+        return () => {
+          unsubscribeVotes();
+          unsubscribeOrders();
+          unsubscribeStage();
+        };
       }, []);
 
       const forceResetToNewRestaurants = async () => {
         const qSnapshot = await getDocs(collection(db, "systemState"));
-        for (let d of qSnapshot.docs) { await deleteDoc(doc(db, "systemState", d.id)); }
-        await addDoc(collection(db, "systemState"), { stage: 'vote', winner: null });
+
+        for (let d of qSnapshot.docs) {
+          await deleteDoc(doc(db, "systemState", d.id));
+        }
+
+        await addDoc(collection(db, "systemState"), {
+          stage: "vote",
+          winner: null
+        });
 
         const restDocs = await getDocs(collection(db, "restaurants"));
-        for (let d of restDocs.docs) { await deleteDoc(doc(db, "restaurants", d.id)); }
+
+        for (let d of restDocs.docs) {
+          await deleteDoc(doc(db, "restaurants", d.id));
+        }
 
         const orderDocs = await getDocs(collection(db, "orders"));
-        for (let d of orderDocs.docs) { await deleteDoc(doc(db, "orders", d.id)); }
-        
+
+        for (let d of orderDocs.docs) {
+          await deleteDoc(doc(db, "orders", d.id));
+        }
+
         const defaultList = [
-          { name: '🍜 金銘潮洲粉麵', votes: 0, voters: [], sortOrder: 1, menuUrl: 'https://www.foodpanda.hk/zh/restaurant/ko8x/kam-ming-restaurant-tuen-mun', imgUrl: 'https://i.imgur.com/KzX5zXF.png' },
-          { name: '🍱 凝香居', votes: 0, voters: [], sortOrder: 2, menuUrl: 'https://url.mykeeta.com/Xsfwrttz', imgUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500' },
-          { name: '🇯🇵 阪神', votes: 0, voters: [], sortOrder: 3, menuUrl: 'https://url.mykeeta.com/uUdS4oez', imgUrl: 'https://images.unsplash.com/photo-1611143669185-af224c5e3252?w=500' }
+          {
+            name: "🍜 金銘潮洲粉麵",
+            votes: 0,
+            voters: [],
+            sortOrder: 1,
+            menuUrl: "https://www.foodpanda.hk/zh/restaurant/ko8x/kam-ming-restaurant-tuen-mun",
+            imgUrl: "https://i.imgur.com/KzX5zXF.png"
+          },
+          {
+            name: "🍱 凝香居",
+            votes: 0,
+            voters: [],
+            sortOrder: 2,
+            menuUrl: "https://url.mykeeta.com/Xsfwrttz",
+            imgUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500"
+          },
+          {
+            name: "🇯🇵 阪神",
+            votes: 0,
+            voters: [],
+            sortOrder: 3,
+            menuUrl: "https://url.mykeeta.com/uUdS4oez",
+            imgUrl: "https://images.unsplash.com/photo-1611143669185-af224c5e3252?w=500"
+          }
         ];
-        for (let r of defaultList) { await addDoc(collection(db, "restaurants"), r); }
+
+        for (let r of defaultList) {
+          await addDoc(collection(db, "restaurants"), r);
+        }
       };
 
       const handleVote = async (id, currentVotes, currentVoters = []) => {
-        if (hasVoted) return alert('你已經投咗票啦！');
+        if (hasVoted) {
+          return alert("你已經投咗票啦！");
+        }
+
         const voterName = window.prompt("你是誰？（請輸入名字以完成記名投票）：");
-        if (!voterName || voterName.trim() === "") return alert("必須輸入名字才可以投票喔！");
+
+        if (!voterName || voterName.trim() === "") {
+          return alert("必須輸入名字才可以投票喔！");
+        }
 
         const rRef = doc(db, "restaurants", id);
-        await updateDoc(rRef, { 
+
+        await updateDoc(rRef, {
           votes: (currentVotes || 0) + 1,
           voters: [...(currentVoters || []), voterName.trim()]
         });
+
         setHasVoted(true);
       };
 
       const handleEndVote = async () => {
         const password = window.prompt("請輸入管理員暗號以結束投票：");
-        if (password !== "kaho") return alert("暗號錯誤！❌");
 
-        const validRestaurants = restaurants.filter(r => r && r.name);
-        const highest = [...validRestaurants].sort((a, b) => (b.votes || 0) - (a.votes || 0))[0];
-        
-        if (!highest) return alert("結算失敗，請重試！");
+        if (password !== "kaho") {
+          return alert("暗號錯誤！❌");
+        }
+
+        const validRestaurants = restaurants.filter((r) => r && r.name);
+
+        const highest = [...validRestaurants].sort(
+          (a, b) => (b.votes || 0) - (a.votes || 0)
+        )[0];
+
+        if (!highest) {
+          return alert("結算失敗，請重試！");
+        }
 
         const qSnapshot = await getDocs(collection(db, "systemState"));
+
         if (!qSnapshot.empty) {
-          await updateDoc(doc(db, "systemState", qSnapshot.docs[0].id), { stage: 'order', winner: highest });
+          await updateDoc(doc(db, "systemState", qSnapshot.docs[0].id), {
+            stage: "order",
+            winner: highest
+          });
         } else {
-          await addDoc(collection(db, "systemState"), { stage: 'order', winner: highest });
+          await addDoc(collection(db, "systemState"), {
+            stage: "order",
+            winner: highest
+          });
         }
       };
 
       const handleOrderSubmit = async (e) => {
         e.preventDefault();
-        if (!name || !food) return alert('請填寫名字 and 主餐！');
-        await addDoc(collection(db, "orders"), { name, food, drink, timestamp: new Date() });
-        setName(''); setFood(''); setDrink('');
+
+        if (!name || !food) {
+          return alert("請填寫名字及主餐！");
+        }
+
+        await addDoc(collection(db, "orders"), {
+          name,
+          food,
+          drink,
+          timestamp: new Date()
+        });
+
+        setName("");
+        setFood("");
+        setDrink("");
       };
 
       const handleReset = async () => {
         const password = window.prompt("請輸入管理員暗號以進行重設：");
-        if (password !== "kaho") return alert("暗號錯誤！❌");
-        if(!window.confirm("確定要洗牌並開啟全新的一天嗎？")) return;
+
+        if (password !== "kaho") {
+          return alert("暗號錯誤！❌");
+        }
+
+        if (!window.confirm("確定要洗牌並開啟全新的一天嗎？")) {
+          return;
+        }
+
         await forceResetToNewRestaurants();
         setHasVoted(false);
       };
 
       return (
         <div className="w-full flex flex-col flex-1">
-          
-          {/* 📢 ✅ 全體即時結果廣播大 Popup，自帶 100% 絕對美術視覺！ */}
+
           {globalNotification && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-xl border border-gray-100">
-                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">📢</div>
-                <h3 className="text-xl font-bold text-gray-800">投票結果公布！</h3>
-                <p className="text-emerald-600 font-black text-lg mt-2 bg-emerald-50 py-2 px-4 rounded-xl inline-block">{globalNotification}</p>
-                <p className="text-xs text-gray-400 mt-3">快啲去打開 KeeTa 睇餐牌落單啦！🍱</p>
-                <button onClick={() => setGlobalNotification(null)} className="w-full mt-5 py-3 bg-gray-900 text-white font-bold rounded-xl text-sm shadow-md hover:bg-black transition-all">收到，即刻落單！ 🚀</button>
+                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                  📢
+                </div>
+
+                <h3 className="text-xl font-bold text-gray-800">
+                  投票結果公布！
+                </h3>
+
+                <p className="text-emerald-600 font-black text-lg mt-2 bg-emerald-50 py-2 px-4 rounded-xl inline-block">
+                  {globalNotification}
+                </p>
+
+                <p className="text-xs text-gray-400 mt-3">
+                  快啲去打開 KeeTa 睇餐牌落單啦！🍱
+                </p>
+
+                <button
+                  onClick={() => setGlobalNotification(null)}
+                  className="w-full mt-5 py-3 bg-gray-900 text-white font-bold rounded-xl text-sm shadow-md hover:bg-black transition-all"
+                >
+                  收到，即刻落單！ 🚀
+                </button>
               </div>
             </div>
           )}
 
-          {/* Header */}
           <div className="bg-[#FAF7F0] border-b border-gray-100 px-6 py-5 text-center">
-            <p className="text-[10px] tracking-[0.25em] uppercase text-gray-400 font-black">Today's Lunch Menu</p>
-            <h1 className="text-xl font-black text-gray-800 mt-0.5 tracking-wide">🍱 辦公室外賣神器</h1>
-            <p className="text-[10px] text-gray-400 mt-0.5">📡 雲端即時同步版</p>
+            <p className="text-[10px] tracking-[0.25em] uppercase text-gray-400 font-black">
+              Today's Lunch Menu
+            </p>
+
+            <h1 className="text-xl font-black text-gray-800 mt-0.5 tracking-wide">
+              🍱 辦公室外賣神器
+            </h1>
+
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              📡 雲端即時同步版
+            </p>
           </div>
 
           <div className="p-4 flex-1 flex flex-col">
-            {/* ➔ 階段一：餐廳投票 (KeeTa 橫向列表視覺) */}
-            {stage === 'vote' && (
+            {stage === "vote" && (
               <div className="space-y-4 flex-1 flex flex-col">
                 <div className="text-center my-1">
-                  <span className="bg-amber-50 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-100/60">第一階段：今日食邊間？</span>
+                  <span className="bg-amber-50 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-100/60">
+                    第一階段：今日食邊間？
+                  </span>
                 </div>
-                
+
                 {restaurants.length === 0 && (
-                  <button onClick={forceResetToNewRestaurants} className="w-full py-3.5 bg-red-500 text-white rounded-xl font-bold animate-pulseshadow-md">⚠️ 雲端數據已清空，點擊一鍵初始化新餐廳</button>
+                  <button
+                    onClick={forceResetToNewRestaurants}
+                    className="w-full py-3.5 bg-red-500 text-white rounded-xl font-bold animate-pulse shadow-md"
+                  >
+                    ⚠️ 雲端數據已清空，點擊一鍵初始化新餐廳
+                  </button>
                 )}
 
                 <div className="space-y-3 flex-1">
-                  {restaurants.map(r => (
+                  {restaurants.map((r) =>
                     r && r.name ? (
-                      <div key={r.id} className="flex bg-white border border-gray-100 p-3 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200">
-                        {/* 左側方形圖片 */}
-                        <img src={r.imgUrl} alt={r.name} className="w-24 h-24 object-cover rounded-xl flex-shrink-0 border border-gray-50 shadow-inner" />
-                        
-                        {/* 右側資訊標籤（帶有 KeeTa 級別視覺！） */}
+                      <div
+                        key={r.id}
+                        className="flex bg-white border border-gray-100 p-3 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200"
+                      >
+                        <img
+                          src={r.imgUrl}
+                          alt={r.name}
+                          className="w-24 h-24 object-cover rounded-xl flex-shrink-0 border border-gray-50 shadow-inner"
+                        />
+
                         <div className="flex-1 pl-3 flex flex-col justify-between">
                           <div>
-                            <span className="font-extrabold text-base text-gray-800 block leading-tight">{r.name}</span>
-                            <a href={r.menuUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md mt-2 inline-flex items-center hover:bg-amber-100 transition-all">
+                            <span className="font-extrabold text-base text-gray-800 block leading-tight">
+                              {r.name}
+                            </span>
+
+                            <a
+                              href={r.menuUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md mt-2 inline-flex items-center hover:bg-amber-100 transition-all"
+                            >
                               🔍 睇 KeeTa 餐牌 ➔
                             </a>
                           </div>
 
                           <div className="flex items-end justify-between mt-2">
                             <div className="flex flex-col">
-                              <span className="text-[11px] text-gray-400">目前票數: <strong className="text-amber-600 text-xs font-black">{r.votes || 0}</strong> 票</span>
+                              <span className="text-[11px] text-gray-400">
+                                目前票數:{" "}
+                                <strong className="text-amber-600 text-xs font-black">
+                                  {r.votes || 0}
+                                </strong>{" "}
+                                票
+                              </span>
+
                               {r.voters && r.voters.length > 0 && (
-                                <span className="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded mt-0.5 max-w-[140px] truncate">👤 {r.voters.join(', ')}</span>
+                                <span className="text-[10px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded mt-0.5 max-w-[140px] truncate">
+                                  👤 {r.voters.join(", ")}
+                                </span>
                               )}
                             </div>
-                            <button onClick={() => handleVote(r.id, r.votes, r.voters)} className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${hasVoted ? 'bg-gray-100 text-gray-400' : 'bg-amber-500 text-white hover:bg-amber-600 shadow-sm'}`}>
-                              {hasVoted ? '已投' : '👍 投一票'}
+
+                            <button
+                              onClick={() => handleVote(r.id, r.votes, r.voters)}
+                              className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
+                                hasVoted
+                                  ? "bg-gray-100 text-gray-400"
+                                  : "bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                              }`}
+                            >
+                              {hasVoted ? "已投" : "👍 投一票"}
                             </button>
                           </div>
                         </div>
                       </div>
                     ) : null
-                  ))}
+                  )}
                 </div>
 
-                <button onClick={handleEndVote} className="w-full mt-auto py-3.5 bg-gray-950 hover:bg-black text-white font-bold rounded-xl text-sm transition-all shadow-md tracking-wider">結束投票 ➔</button>
+                <button
+                  onClick={handleEndVote}
+                  className="w-full mt-auto py-3.5 bg-gray-950 hover:bg-black text-white font-bold rounded-xl text-sm transition-all shadow-md tracking-wider"
+                >
+                  結束投票 ➔
+                </button>
               </div>
             )}
 
-            {/* ➔ 階段二：KeeTa 點餐 (高質感表單) */}
-            {stage === 'order' && winner && (
+            {stage === "order" && winner && (
               <div className="space-y-4 flex-1 flex flex-col">
                 <div className="text-center">
-                  <span className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-100/60">第二階段：開飯落單</span>
-                  
+                  <span className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-100/60">
+                    第二階段：開飯落單
+                  </span>
+
                   <div className="flex items-center bg-emerald-50/40 border border-emerald-100 p-3 rounded-2xl mt-3 shadow-sm hover:border-gray-200 transition-all">
-                    <img src={winner.imgUrl} alt={winner.name} className="w-14 h-14 object-cover rounded-xl border border-white shadow-sm" />
+                    <img
+                      src={winner.imgUrl}
+                      alt={winner.name}
+                      className="w-14 h-14 object-cover rounded-xl border border-white shadow-sm"
+                    />
+
                     <div className="pl-3 text-left">
-                      <p className="text-[10px] font-bold text-emerald-600 tracking-wider uppercase">今日最高票精選</p>
-                      <h2 className="text-base font-black text-gray-800 leading-tight">{winner.name}</h2>
+                      <p className="text-[10px] font-bold text-emerald-600 tracking-wider uppercase">
+                        今日最高票精選
+                      </p>
+
+                      <h2 className="text-base font-black text-gray-800 leading-tight">
+                        {winner.name}
+                      </h2>
                     </div>
                   </div>
 
-                  <a href={winner.menuUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-full text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 py-3.5 rounded-xl mt-3 shadow-md transition-all tracking-wide">🟢 打開 KeeTa 睇餐牌落單 ➔</a>
+                  <a
+                    href={winner.menuUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center w-full text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 py-3.5 rounded-xl mt-3 shadow-md transition-all tracking-wide"
+                  >
+                    🟢 打開 KeeTa 睇餐牌落單 ➔
+                  </a>
                 </div>
 
                 <form onSubmit={handleOrderSubmit} className="space-y-2 pt-1 relative">
-                  <input type="text" placeholder="你是誰？" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"/>
-                  <input type="text" placeholder="想食咩主餐？（跟 KeeTa 名稱）" value={food} onChange={(e) => setFood(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"/>
-                  <input type="text" placeholder="想飲咩？" value={drink} onChange={(e) => setDrink(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"/>
-                  <button type="submit" className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl text-sm shadow-md hover:bg-amber-600 transition-all tracking-wider">提交今日點餐 🚀</button>
+                  <input
+                    type="text"
+                    placeholder="你是誰？"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="想食咩主餐？（跟 KeeTa 名稱）"
+                    value={food}
+                    onChange={(e) => setFood(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="想飲咩？"
+                    value={drink}
+                    onChange={(e) => setDrink(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+                  />
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-amber-500 text-white font-bold rounded-xl text-sm shadow-md hover:bg-amber-600 transition-all tracking-wider"
+                  >
+                    提交今日點餐 🚀
+                  </button>
                 </form>
 
                 <div className="relative my-1">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-100"></div></div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider"><span className="bg-white px-3 text-gray-400 font-medium">今日落單名單 ({orders.length})</span></div>
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-100"></div>
+                  </div>
+
+                  <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
+                    <span className="bg-white px-3 text-gray-400 font-medium">
+                      今日落單名單 ({orders.length})
+                    </span>
+                  </div>
                 </div>
 
                 <div className="max-h-48 overflow-y-auto space-y-2 flex-1 relative">
                   {orders.map((order, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-gray-200 transition-all duration-300 transform selection:bg-amber-100">
+                    <div
+                      key={order.id || index}
+                      className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-gray-200 transition-all duration-300 transform selection:bg-amber-100"
+                    >
                       <div>
-                        <span className="text-sm font-bold text-gray-700 block">{order.name}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block font-medium ${order.drink ? 'bg-orange-50 text-orange-600 border border-orange-100/60' : 'bg-gray-50 text-gray-400'}`}>
-                          {order.drink ? `🥤 ${order.drink}` : '🚫 唔要飲品'}
+                        <span className="text-sm font-bold text-gray-700 block">
+                          {order.name}
+                        </span>
+
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block font-medium ${
+                            order.drink
+                              ? "bg-orange-50 text-orange-600 border border-orange-100/60"
+                              : "bg-gray-50 text-gray-400"
+                          }`}
+                        >
+                          {order.drink ? `🥤 ${order.drink}` : "🚫 唔要飲品"}
                         </span>
                       </div>
-                      <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-100/40 px-3 py-1.5 rounded-xl">🍛 {order.food}</span>
+
+                      <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-100/40 px-3 py-1.5 rounded-xl">
+                        🍛 {order.food}
+                      </span>
                     </div>
                   ))}
                 </div>
 
-                <button onClick={handleReset} className="w-full py-2 text-xs text-gray-300 hover:text-gray-400 text-center mt-1 transition-all">🔄 重設並開啟全新的一天</button>
+                <button
+                  onClick={handleReset}
+                  className="w-full py-2 text-xs text-gray-300 hover:text-gray-400 text-center mt-1 transition-all"
+                >
+                  🔄 重設並開啟全新的一天
+                </button>
               </div>
             )}
           </div>
@@ -265,9 +530,9 @@
       );
     }
 
-    const container = document.getElementById('root');
+    const container = document.getElementById("root");
     const root = createRoot(container);
-    root.render(React.createElement(App));
+    root.render(<App />);
   </script>
 </body>
 </html>
