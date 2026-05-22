@@ -1,12 +1,12 @@
 {
   "files": {
-    "main.js": "/todayeatmudho/static/js/main.4d9e5fba.js",
+    "main.js": "/todayeatmudho/static/js/main.c11a8198.js",
     "static/js/453.8b06fdf2.chunk.js": "/todayeatmudho/static/js/453.8b06fdf2.chunk.js",
     "index.html": "/todayeatmudho/index.html",
-    "main.4d9e5fba.js.map": "/todayeatmudho/static/js/main.4d9e5fba.js.map",
+    "main.c11a8198.js.map": "/todayeatmudho/static/js/main.c11a8198.js.map",
     "453.8b06fdf2.chunk.js.map": "/todayeatmudho/static/js/453.8b06fdf2.chunk.js.map"
   },
   "entrypoints": [
-    "static/js/main.4d9e5fba.js"
+    "static/js/main.c11a8198.js"
   ]
 }
