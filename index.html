@@ -258,7 +258,8 @@
       updateDoc,
       doc,
       getDocs,
-      deleteDoc
+      deleteDoc,
+      runTransaction
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     import React, { useState, useEffect, useRef } from "https://esm.sh/react@18.2.0";
@@ -341,7 +342,17 @@
         }));
     }
 
-    function pickWinner(restaurants) {
+    function getStableIndex(seedText, itemCount) {
+      let hash = 0;
+
+      for (let i = 0; i < seedText.length; i++) {
+        hash = (hash * 31 + seedText.charCodeAt(i)) >>> 0;
+      }
+
+      return hash % itemCount;
+    }
+
+    function pickWinner(restaurants, seedKey = getHongKongDateInfo().dateKey) {
       const validRestaurants = restaurants.filter((r) => r && r.name);
 
       if (validRestaurants.length === 0) {
@@ -356,8 +367,16 @@
         (restaurant) => (restaurant.votes || 0) === highestVotes
       );
 
-      const winnerIndex = Math.floor(Math.random() * tiedRestaurants.length);
-      const winner = tiedRestaurants[winnerIndex];
+      const sortedTiedRestaurants = [...tiedRestaurants].sort((a, b) =>
+        `${a.sortOrder || 0}-${a.id || a.name}`.localeCompare(
+          `${b.sortOrder || 0}-${b.id || b.name}`
+        )
+      );
+      const tieSeed = `${seedKey}|${sortedTiedRestaurants
+        .map((restaurant) => restaurant.id || restaurant.name)
+        .join("|")}`;
+      const winnerIndex = getStableIndex(tieSeed, sortedTiedRestaurants.length);
+      const winner = sortedTiedRestaurants[winnerIndex];
 
       return {
         ...winner,
@@ -428,6 +447,7 @@
       const [drink, setDrink] = useState("");
       const [globalNotification, setGlobalNotification] = useState(null);
       const isFinalizingVoteRef = useRef(false);
+      const isVotingRef = useRef(false);
       const prefilledOrderIdRef = useRef(null);
 
       useEffect(() => {
@@ -647,9 +667,13 @@
         }
       };
 
-      const handleVote = async (id, currentVotes, currentVoters = []) => {
+      const handleVote = async (id) => {
         if (!userName) {
           setShowNameModal(true);
+          return;
+        }
+
+        if (isVotingRef.current) {
           return;
         }
 
@@ -659,14 +683,64 @@
           return alert(`${userName} 已經投咗票啦！`);
         }
 
-        const rRef = doc(db, "restaurants", id);
+        isVotingRef.current = true;
 
-        await updateDoc(rRef, {
-          votes: (currentVotes || 0) + 1,
-          voters: [...(currentVoters || []), userName]
-        });
+        try {
+          const restaurantRefs = restaurants
+            .filter((restaurant) => restaurant && restaurant.id)
+            .map((restaurant) => ({
+              id: restaurant.id,
+              ref: doc(db, "restaurants", restaurant.id)
+            }));
 
-        setHasVoted(true);
+          await runTransaction(db, async (transaction) => {
+            const snapshots = [];
+
+            for (let restaurantRef of restaurantRefs) {
+              snapshots.push(await transaction.get(restaurantRef.ref));
+            }
+
+            const alreadyVoted = snapshots.some((snapshot) => {
+              const restaurant = snapshot.data();
+              return (
+                restaurant &&
+                Array.isArray(restaurant.voters) &&
+                restaurant.voters.includes(userName)
+              );
+            });
+
+            if (alreadyVoted) {
+              throw new Error("ALREADY_VOTED");
+            }
+
+            const targetIndex = restaurantRefs.findIndex((restaurant) => restaurant.id === id);
+            const targetSnapshot = snapshots[targetIndex];
+
+            if (!targetSnapshot || !targetSnapshot.exists()) {
+              throw new Error("RESTAURANT_NOT_FOUND");
+            }
+
+            const targetData = targetSnapshot.data();
+            const targetVoters = Array.isArray(targetData.voters)
+              ? targetData.voters
+              : [];
+
+            transaction.update(restaurantRefs[targetIndex].ref, {
+              votes: (targetData.votes || 0) + 1,
+              voters: [...targetVoters, userName]
+            });
+          });
+
+          setHasVoted(true);
+        } catch (error) {
+          if (error.message === "ALREADY_VOTED") {
+            return alert(`${userName} 已經投咗票啦！`);
+          }
+
+          return alert("投票失敗，請再試一次。");
+        } finally {
+          isVotingRef.current = false;
+        }
       };
 
       const finalizeVote = async (isAutoCutoff = false) => {
@@ -676,16 +750,21 @@
 
         isFinalizingVoteRef.current = true;
 
-        const highest = pickWinner(restaurants);
-
-        if (!highest) {
-          isFinalizingVoteRef.current = false;
-          return alert("結算失敗，請重試！");
-        }
-
         try {
+          const restDocs = await getDocs(collection(db, "restaurants"));
+          const latestRestaurants = restDocs.docs.map((docItem) => ({
+            id: docItem.id,
+            ...docItem.data()
+          }));
+          const hongKongNow = getHongKongDateInfo();
+          const highest = pickWinner(latestRestaurants, hongKongNow.dateKey);
+
+          if (!highest) {
+            return alert("結算失敗，請重試！");
+          }
+
           const qSnapshot = await getDocs(collection(db, "systemState"));
-          const cutoffDate = isAutoCutoff ? getHongKongDateInfo().dateKey : autoCutoffDate;
+          const cutoffDate = isAutoCutoff ? hongKongNow.dateKey : autoCutoffDate;
 
           if (!qSnapshot.empty) {
             await updateDoc(doc(db, "systemState", qSnapshot.docs[0].id), {
@@ -699,6 +778,10 @@
               winner: highest,
               autoCutoffDate: cutoffDate
             });
+          }
+        } catch (error) {
+          if (!isAutoCutoff) {
+            alert("結算失敗，請重試！");
           }
         } finally {
           isFinalizingVoteRef.current = false;
@@ -920,7 +1003,7 @@
                               </div>
 
                               <button
-                                onClick={() => handleVote(r.id, r.votes, r.voters)}
+                                onClick={() => handleVote(r.id)}
                                 className={`px-4 py-2 text-xs font-black rounded-full transition-all shadow-sm ${
                                   Array.isArray(r.voters) && r.voters.includes(userName)
                                     ? "bg-amber-500 text-white shadow-sm"
