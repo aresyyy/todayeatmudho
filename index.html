@@ -261,7 +261,7 @@
       deleteDoc
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    import React, { useState, useEffect } from "https://esm.sh/react@18.2.0";
+    import React, { useState, useEffect, useRef } from "https://esm.sh/react@18.2.0";
     import { createRoot } from "https://esm.sh/react-dom@18.2.0/client";
 
     const firebaseConfig = {
@@ -276,6 +276,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const ADMIN_PASSWORD = "0118";
+    const CUTOFF_HOUR = 11;
+    const CUTOFF_MINUTE = 0;
 
     function getHongKongDateInfo() {
       const parts = new Intl.DateTimeFormat("en-CA", {
@@ -300,11 +302,18 @@
     function shouldPauseAutoCutoffToday() {
       const hongKongNow = getHongKongDateInfo();
 
-      if (hongKongNow.hour > 11 || (hongKongNow.hour === 11 && hongKongNow.minute >= 0)) {
+      if (isAtOrAfterCutoff(hongKongNow)) {
         return hongKongNow.dateKey;
       }
 
       return null;
+    }
+
+    function isAtOrAfterCutoff(timeInfo) {
+      return (
+        timeInfo.hour > CUTOFF_HOUR ||
+        (timeInfo.hour === CUTOFF_HOUR && timeInfo.minute >= CUTOFF_MINUTE)
+      );
     }
 
     function LoadingScreen() {
@@ -330,6 +339,32 @@
           ...item,
           sortOrder: index + 1
         }));
+    }
+
+    function pickWinner(restaurants) {
+      const validRestaurants = restaurants.filter((r) => r && r.name);
+
+      if (validRestaurants.length === 0) {
+        return null;
+      }
+
+      const highestVotes = Math.max(
+        ...validRestaurants.map((restaurant) => restaurant.votes || 0)
+      );
+
+      const tiedRestaurants = validRestaurants.filter(
+        (restaurant) => (restaurant.votes || 0) === highestVotes
+      );
+
+      const winnerIndex = Math.floor(Math.random() * tiedRestaurants.length);
+      const winner = tiedRestaurants[winnerIndex];
+
+      return {
+        ...winner,
+        tieBreaker: tiedRestaurants.length > 1,
+        tiedCount: tiedRestaurants.length,
+        winningVotes: highestVotes
+      };
     }
 
     function NameModal({ userName, setUserName, setTempName, tempName, onSaveName }) {
@@ -392,6 +427,7 @@
       const [food, setFood] = useState("");
       const [drink, setDrink] = useState("");
       const [globalNotification, setGlobalNotification] = useState(null);
+      const isFinalizingVoteRef = useRef(false);
 
       useEffect(() => {
         const savedName = localStorage.getItem("todayeatmudho_userName");
@@ -504,7 +540,7 @@
             return;
           }
 
-          if (hongKongNow.hour >= 11) {
+          if (isAtOrAfterCutoff(hongKongNow)) {
             finalizeVote(true);
           }
         };
@@ -619,30 +655,38 @@
       };
 
       const finalizeVote = async (isAutoCutoff = false) => {
-        const validRestaurants = restaurants.filter((r) => r && r.name);
+        if (isFinalizingVoteRef.current) {
+          return;
+        }
 
-        const highest = [...validRestaurants].sort(
-          (a, b) => (b.votes || 0) - (a.votes || 0)
-        )[0];
+        isFinalizingVoteRef.current = true;
+
+        const highest = pickWinner(restaurants);
 
         if (!highest) {
+          isFinalizingVoteRef.current = false;
           return alert("結算失敗，請重試！");
         }
 
-        const qSnapshot = await getDocs(collection(db, "systemState"));
+        try {
+          const qSnapshot = await getDocs(collection(db, "systemState"));
+          const cutoffDate = isAutoCutoff ? getHongKongDateInfo().dateKey : autoCutoffDate;
 
-        if (!qSnapshot.empty) {
-          await updateDoc(doc(db, "systemState", qSnapshot.docs[0].id), {
-            stage: "order",
-            winner: highest,
-            autoCutoffDate: isAutoCutoff ? getHongKongDateInfo().dateKey : autoCutoffDate
-          });
-        } else {
-          await addDoc(collection(db, "systemState"), {
-            stage: "order",
-            winner: highest,
-            autoCutoffDate: isAutoCutoff ? getHongKongDateInfo().dateKey : autoCutoffDate
-          });
+          if (!qSnapshot.empty) {
+            await updateDoc(doc(db, "systemState", qSnapshot.docs[0].id), {
+              stage: "order",
+              winner: highest,
+              autoCutoffDate: cutoffDate
+            });
+          } else {
+            await addDoc(collection(db, "systemState"), {
+              stage: "order",
+              winner: highest,
+              autoCutoffDate: cutoffDate
+            });
+          }
+        } finally {
+          isFinalizingVoteRef.current = false;
         }
       };
 
@@ -742,6 +786,12 @@
                     <p className="text-[17px] font-black text-gray-900 leading-tight mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
                       {globalNotification.replace("今日精選餐廳：", "")}
                     </p>
+
+                    {winner && winner.tieBreaker && (
+                      <p className="text-[10px] font-bold text-emerald-700 mt-1">
+                        同票，系統已隨機抽出
+                      </p>
+                    )}
                   </div>
 
                   <p className="text-[12px] text-gray-500 mt-3 leading-relaxed">
@@ -885,13 +935,9 @@
               )}
 
               {stage === "order" && winner && (
-                <div className="space-y-4 flex-1 flex flex-col">
+                <div className="space-y-3.5 flex-1 flex flex-col">
                   <div className="text-center">
-                    <span className="stage-badge bg-gray-900 text-white text-[11px] font-black px-3 py-1.5 rounded-full">
-                      第二階段：開飯落單
-                    </span>
-
-                    <div className="pressable flex items-center bg-emerald-50/70 border border-emerald-100 p-3 rounded-[1.35rem] mt-3 shadow-sm hover:border-emerald-200">
+                    <div className="pressable flex items-center bg-emerald-50/70 border border-emerald-100 p-3 rounded-[1.35rem] shadow-sm hover:border-emerald-200">
                       <img
                         src={winner.imgUrl}
                         alt={winner.name}
@@ -900,12 +946,18 @@
 
                       <div className="pl-3 text-left">
                         <p className="text-[10px] font-black text-emerald-600">
-                          今日最高票精選
+                          今日最多人想食
                         </p>
 
                         <h2 className="text-base font-black text-gray-900 leading-tight mt-0.5">
                           {winner.name}
                         </h2>
+
+                        {winner.tieBreaker && (
+                          <p className="text-[10px] font-bold text-emerald-700 mt-1">
+                            同票，已隨機抽出
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -913,9 +965,9 @@
                       href={winner.menuUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center w-full text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 py-3.5 rounded-2xl mt-3 shadow-md transition-all"
+                      className="pressable inline-flex items-center justify-center w-full h-12 text-sm font-black text-white bg-emerald-500 hover:bg-emerald-600 rounded-[1.2rem] mt-3 shadow-md transition-all"
                     >
-                      打開 KeeTa 睇餐牌落單 ➔
+                      打開 Keeta 餐牌 →
                     </a>
                   </div>
 
@@ -935,7 +987,7 @@
 
                     <input
                       type="text"
-                      placeholder="想食咩主餐？（跟 KeeTa 名稱）"
+                      placeholder="想食咩主餐？（跟 Keeta 名稱）"
                       value={food}
                       onChange={(e) => setFood(e.target.value)}
                       className="soft-input w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
@@ -953,7 +1005,7 @@
                       type="submit"
                       className="w-full py-3.5 bg-gray-900 text-white font-black rounded-2xl text-sm shadow-md hover:bg-black transition-all"
                     >
-                      提交今日點餐
+                      提交點餐
                     </button>
                   </form>
 
@@ -966,39 +1018,50 @@
                     </span>
                   </div>
 
-                  <div className="max-h-56 overflow-y-auto space-y-2 flex-1 relative pr-0.5">
-                    {orders.map((order, index) => (
-                      <div
-                        key={order.id || index}
-                        className="pressable p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-gray-200 duration-300 selection:bg-amber-100"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="text-sm font-black text-gray-900 block min-w-[58px]">
-                            {order.name}
-                          </span>
+                  <div className={`overflow-y-auto space-y-2 relative pr-0.5 ${orders.length > 0 ? "max-h-56 flex-1" : ""}`}>
+                    {orders.length === 0 ? (
+                      <div className="bg-white/70 border border-dashed border-gray-200 rounded-2xl py-5 px-4 text-center shadow-sm">
+                        <p className="text-sm font-black text-gray-500">
+                          暫時未有人落單
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          提交後會顯示在這裡
+                        </p>
+                      </div>
+                    ) : (
+                      orders.map((order, index) => (
+                        <div
+                          key={order.id || index}
+                          className="pressable p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-gray-200 duration-300 selection:bg-amber-100"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="text-sm font-black text-gray-900 block min-w-[58px]">
+                              {order.name}
+                            </span>
 
-                          <div className="flex-1 space-y-1.5 text-right">
-                            <div className="inline-flex max-w-full text-left text-xs font-black text-amber-900 bg-amber-50 border border-amber-100/70 px-3 py-1.5 rounded-xl">
-                              <span className="text-amber-500 mr-1.5 shrink-0">主餐</span>
-                              <span className="break-words">{order.food}</span>
-                            </div>
+                            <div className="flex-1 space-y-1.5 text-right">
+                              <div className="inline-flex max-w-full text-left text-xs font-black text-amber-900 bg-amber-50 border border-amber-100/70 px-3 py-1.5 rounded-xl">
+                                <span className="text-amber-500 mr-1.5 shrink-0">主餐</span>
+                                <span className="break-words">{order.food}</span>
+                              </div>
 
-                            <div>
-                              <span
-                                className={`inline-flex max-w-full text-left text-[11px] px-3 py-1.5 rounded-xl font-bold ${
-                                  order.drink
-                                    ? "bg-orange-50 text-orange-700 border border-orange-100/70"
-                                    : "bg-gray-50 text-gray-400 border border-gray-100"
-                                }`}
-                              >
-                                <span className="mr-1.5 shrink-0">飲品</span>
-                                <span className="break-words">{order.drink || "唔要飲品"}</span>
-                              </span>
+                              <div>
+                                <span
+                                  className={`inline-flex max-w-full text-left text-[11px] px-3 py-1.5 rounded-xl font-bold ${
+                                    order.drink
+                                      ? "bg-orange-50 text-orange-700 border border-orange-100/70"
+                                      : "bg-gray-50 text-gray-400 border border-gray-100"
+                                  }`}
+                                >
+                                  <span className="mr-1.5 shrink-0">飲品</span>
+                                  <span className="break-words">{order.drink || "唔要飲品"}</span>
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
 
                   <button
