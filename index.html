@@ -188,6 +188,37 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const ADMIN_PASSWORD = "0118";
+
+    function getHongKongDateInfo() {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Hong_Kong",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23"
+      }).formatToParts(new Date());
+
+      const valueOf = (type) => parts.find((part) => part.type === type)?.value;
+
+      return {
+        dateKey: `${valueOf("year")}-${valueOf("month")}-${valueOf("day")}`,
+        hour: Number(valueOf("hour")),
+        minute: Number(valueOf("minute"))
+      };
+    }
+
+    function shouldPauseAutoCutoffToday() {
+      const hongKongNow = getHongKongDateInfo();
+
+      if (hongKongNow.hour > 11 || (hongKongNow.hour === 11 && hongKongNow.minute >= 0)) {
+        return hongKongNow.dateKey;
+      }
+
+      return null;
+    }
 
     function LoadingScreen() {
       return (
@@ -265,6 +296,7 @@
       const [hasVoted, setHasVoted] = useState(false);
       const [winner, setWinner] = useState(null);
       const [orders, setOrders] = useState([]);
+      const [autoCutoffDate, setAutoCutoffDate] = useState(null);
 
       const [userName, setUserName] = useState("");
       const [tempName, setTempName] = useState("");
@@ -333,6 +365,7 @@
             }
 
             setStage(state.stage || "vote");
+            setAutoCutoffDate(state.autoCutoffDate || shouldPauseAutoCutoffToday());
 
             if (state.winner) {
               setWinner(state.winner);
@@ -372,6 +405,29 @@
         setHasVoted(alreadyVoted);
       }, [restaurants, userName]);
 
+      useEffect(() => {
+        const checkAutoCutoff = () => {
+          const hongKongNow = getHongKongDateInfo();
+
+          if (
+            stage !== "vote" ||
+            autoCutoffDate === hongKongNow.dateKey ||
+            restaurants.length === 0
+          ) {
+            return;
+          }
+
+          if (hongKongNow.hour >= 11) {
+            finalizeVote(true);
+          }
+        };
+
+        checkAutoCutoff();
+        const autoCutoffTimer = setInterval(checkAutoCutoff, 30000);
+
+        return () => clearInterval(autoCutoffTimer);
+      }, [stage, restaurants, autoCutoffDate]);
+
       const saveUserName = () => {
         const cleanedName = tempName.trim();
 
@@ -399,7 +455,8 @@
 
         await addDoc(collection(db, "systemState"), {
           stage: "vote",
-          winner: null
+          winner: null,
+          autoCutoffDate: shouldPauseAutoCutoffToday()
         });
 
         const restDocs = await getDocs(collection(db, "restaurants"));
@@ -474,13 +531,7 @@
         setHasVoted(true);
       };
 
-      const handleEndVote = async () => {
-        const password = window.prompt("請輸入管理員暗號：");
-
-        if (password !== "kaho") {
-          return alert("暗號錯誤！❌");
-        }
-
+      const finalizeVote = async (isAutoCutoff = false) => {
         const validRestaurants = restaurants.filter((r) => r && r.name);
 
         const highest = [...validRestaurants].sort(
@@ -496,14 +547,26 @@
         if (!qSnapshot.empty) {
           await updateDoc(doc(db, "systemState", qSnapshot.docs[0].id), {
             stage: "order",
-            winner: highest
+            winner: highest,
+            autoCutoffDate: isAutoCutoff ? getHongKongDateInfo().dateKey : autoCutoffDate
           });
         } else {
           await addDoc(collection(db, "systemState"), {
             stage: "order",
-            winner: highest
+            winner: highest,
+            autoCutoffDate: isAutoCutoff ? getHongKongDateInfo().dateKey : autoCutoffDate
           });
         }
+      };
+
+      const handleEndVote = async () => {
+        const password = window.prompt("請輸入管理員暗號：");
+
+        if (password !== ADMIN_PASSWORD) {
+          return alert("暗號錯誤！❌");
+        }
+
+        await finalizeVote(false);
       };
 
       const handleOrderSubmit = async (e) => {
@@ -544,7 +607,7 @@
       const handleReset = async () => {
         const password = window.prompt("請輸入管理員暗號以進行重設：");
 
-        if (password !== "kaho") {
+        if (password !== ADMIN_PASSWORD) {
           return alert("暗號錯誤！❌");
         }
 
@@ -841,9 +904,9 @@
 
                   <button
                     onClick={handleReset}
-                    className="w-full py-2 text-xs text-gray-300 hover:text-gray-400 text-center mt-1 transition-all"
+                    className="self-end px-2 py-1 text-[10px] text-gray-200 hover:text-gray-400 transition-all"
                   >
-                    🔄 重設並開啟全新的一天
+                    管理重設
                   </button>
                 </div>
               )}
