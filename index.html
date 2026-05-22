@@ -39,6 +39,7 @@
       align-items: center;
       justify-content: center;
       background-color: #F7D900;
+      position: relative;
     }
 
     .logo-crop-img {
@@ -178,6 +179,47 @@
         }));
     }
 
+    function NameModal({ userName, setUserName, setTempName, tempName, onSaveName }) {
+      return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-xl border border-gray-100 animate-pop">
+            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+              👤
+            </div>
+
+            <h3 className="text-xl font-black text-gray-800">
+              先設定你個名
+            </h3>
+
+            <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+              之後投票同落單會自動用呢個名，唔使每次再輸入。
+            </p>
+
+            <input
+              type="text"
+              placeholder="例如：Ka Ho"
+              value={tempName}
+              onChange={(e) => setTempName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  onSaveName();
+                }
+              }}
+              className="w-full mt-5 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+              autoFocus
+            />
+
+            <button
+              onClick={onSaveName}
+              className="w-full mt-4 py-3 bg-amber-500 text-white font-black rounded-xl text-sm shadow-md hover:bg-amber-600 transition-all"
+            >
+              儲存名字
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     function App() {
       const [isLoading, setIsLoading] = useState(true);
       const [canHideLoading, setCanHideLoading] = useState(false);
@@ -188,10 +230,26 @@
       const [hasVoted, setHasVoted] = useState(false);
       const [winner, setWinner] = useState(null);
       const [orders, setOrders] = useState([]);
-      const [name, setName] = useState("");
+
+      const [userName, setUserName] = useState("");
+      const [tempName, setTempName] = useState("");
+      const [showNameModal, setShowNameModal] = useState(false);
+
       const [food, setFood] = useState("");
       const [drink, setDrink] = useState("");
       const [globalNotification, setGlobalNotification] = useState(null);
+
+      useEffect(() => {
+        const savedName = localStorage.getItem("todayeatmudho_userName");
+
+        if (savedName && savedName.trim() !== "") {
+          setUserName(savedName.trim());
+          setTempName(savedName.trim());
+          setShowNameModal(false);
+        } else {
+          setShowNameModal(true);
+        }
+      }, []);
 
       useEffect(() => {
         const minimumLoadingTimer = setTimeout(() => {
@@ -266,6 +324,37 @@
         }
       }, [canHideLoading, dataReady]);
 
+      useEffect(() => {
+        if (!userName) {
+          setHasVoted(false);
+          return;
+        }
+
+        const alreadyVoted = restaurants.some((r) =>
+          Array.isArray(r.voters) && r.voters.includes(userName)
+        );
+
+        setHasVoted(alreadyVoted);
+      }, [restaurants, userName]);
+
+      const saveUserName = () => {
+        const cleanedName = tempName.trim();
+
+        if (!cleanedName) {
+          return alert("請輸入名字");
+        }
+
+        localStorage.setItem("todayeatmudho_userName", cleanedName);
+        setUserName(cleanedName);
+        setTempName(cleanedName);
+        setShowNameModal(false);
+      };
+
+      const changeUserName = () => {
+        setTempName(userName || "");
+        setShowNameModal(true);
+      };
+
       const forceResetToNewRestaurants = async () => {
         const qSnapshot = await getDocs(collection(db, "systemState"));
 
@@ -329,21 +418,22 @@
       };
 
       const handleVote = async (id, currentVotes, currentVoters = []) => {
-        if (hasVoted) {
-          return alert("你已經投咗票啦！");
+        if (!userName) {
+          setShowNameModal(true);
+          return;
         }
 
-        const voterName = window.prompt("你是誰？（請輸入名字以完成記名投票）：");
+        const allVoters = restaurants.flatMap((r) => r.voters || []);
 
-        if (!voterName || voterName.trim() === "") {
-          return alert("必須輸入名字才可以投票喔！");
+        if (allVoters.includes(userName)) {
+          return alert(`${userName} 已經投咗票啦！`);
         }
 
         const rRef = doc(db, "restaurants", id);
 
         await updateDoc(rRef, {
           votes: (currentVotes || 0) + 1,
-          voters: [...(currentVoters || []), voterName.trim()]
+          voters: [...(currentVoters || []), userName]
         });
 
         setHasVoted(true);
@@ -384,18 +474,34 @@
       const handleOrderSubmit = async (e) => {
         e.preventDefault();
 
-        if (!name || !food) {
-          return alert("請填寫名字及主餐！");
+        if (!userName) {
+          setShowNameModal(true);
+          return;
+        }
+
+        if (!food) {
+          return alert("請填寫主餐！");
+        }
+
+        const existingOrder = orders.find((order) => order.name === userName);
+
+        if (existingOrder) {
+          const confirmAdd = window.confirm(
+            `${userName} 已經落過單，是否仍然新增多一張單？`
+          );
+
+          if (!confirmAdd) {
+            return;
+          }
         }
 
         await addDoc(collection(db, "orders"), {
-          name,
+          name: userName,
           food,
           drink,
           timestamp: new Date()
         });
 
-        setName("");
         setFood("");
         setDrink("");
       };
@@ -418,6 +524,16 @@
       return (
         <>
           {isLoading && <LoadingScreen />}
+
+          {showNameModal && (
+            <NameModal
+              userName={userName}
+              setUserName={setUserName}
+              tempName={tempName}
+              setTempName={setTempName}
+              onSaveName={saveUserName}
+            />
+          )}
 
           <div className="w-full flex flex-col flex-1">
 
@@ -451,6 +567,13 @@
             )}
 
             <div className="logo-crop-box">
+              <button
+                onClick={changeUserName}
+                className="absolute top-3 right-3 text-[10px] font-bold bg-white/50 hover:bg-white/80 text-gray-700 px-2.5 py-1 rounded-full transition-all"
+              >
+                {userName ? `👤 ${userName}` : "設定名字"}
+              </button>
+
               <img
                 src="./logo192.png"
                 alt="todayeatmudho Logo"
@@ -465,6 +588,12 @@
                     <span className="bg-amber-50 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-100/60">
                       第一階段：今日食邊間？
                     </span>
+
+                    {userName && (
+                      <p className="text-[11px] text-gray-400 mt-2">
+                        目前身份：<span className="font-bold text-gray-600">{userName}</span>
+                      </p>
+                    )}
                   </div>
 
                   {restaurants.length === 0 && (
@@ -586,13 +715,18 @@
                   </div>
 
                   <form onSubmit={handleOrderSubmit} className="space-y-2 pt-1 relative">
-                    <input
-                      type="text"
-                      placeholder="你是誰？"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
-                    />
+                    <div className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center justify-between">
+                      <span className="text-gray-400 text-xs font-bold">
+                        落單人
+                      </span>
+                      <button
+                        type="button"
+                        onClick={changeUserName}
+                        className="text-gray-700 text-sm font-black"
+                      >
+                        {userName || "設定名字"}
+                      </button>
+                    </div>
 
                     <input
                       type="text"
