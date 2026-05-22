@@ -60,9 +60,12 @@
     }
 
     .loading-logo {
-      width: 210px;
+      width: 230px;
       height: auto;
-      animation: loadingPulse 1.2s ease-in-out infinite;
+      animation:
+        logoBounceIn 0.75s cubic-bezier(.2, 1.25, .35, 1) both,
+        logoBreath 1.35s ease-in-out 0.75s infinite;
+      transform-origin: center;
     }
 
     .loading-text {
@@ -90,20 +93,37 @@
       }
     }
 
-    @keyframes loadingPulse {
+    @keyframes logoBounceIn {
       0% {
-        transform: scale(0.96);
-        opacity: 0.75;
+        transform: scale(0.35);
+        opacity: 0;
       }
 
-      50% {
-        transform: scale(1);
+      55% {
+        transform: scale(1.14);
         opacity: 1;
       }
 
+      75% {
+        transform: scale(0.94);
+      }
+
       100% {
-        transform: scale(0.96);
-        opacity: 0.75;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes logoBreath {
+      0% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.045);
+      }
+
+      100% {
+        transform: scale(1);
       }
     }
 
@@ -131,7 +151,7 @@
       }
 
       .loading-logo {
-        width: 190px;
+        width: 210px;
       }
     }
   </style>
@@ -173,7 +193,7 @@
       return (
         <div className="loading-screen">
           <img
-            src="./logo-full.png"
+            src="./logo192.png"
             alt="todayeatmudho loading"
             className="loading-logo"
           />
@@ -186,6 +206,9 @@
 
     function App() {
       const [isLoading, setIsLoading] = useState(true);
+      const [canHideLoading, setCanHideLoading] = useState(false);
+      const [dataReady, setDataReady] = useState(false);
+
       const [stage, setStage] = useState("vote");
       const [restaurants, setRestaurants] = useState([]);
       const [hasVoted, setHasVoted] = useState(false);
@@ -197,9 +220,13 @@
       const [globalNotification, setGlobalNotification] = useState(null);
 
       useEffect(() => {
-        const loadingTimer = setTimeout(() => {
+        const minimumLoadingTimer = setTimeout(() => {
+          setCanHideLoading(true);
+        }, 2200);
+
+        const maximumLoadingTimer = setTimeout(() => {
           setIsLoading(false);
-        }, 1200);
+        }, 2800);
 
         const unsubscribeVotes = onSnapshot(collection(db, "restaurants"), (snapshot) => {
           const rData = snapshot.docs.map((docItem) => ({
@@ -211,7 +238,7 @@
             rData.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
           );
 
-          setIsLoading(false);
+          setDataReady(true);
         });
 
         const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
@@ -247,16 +274,23 @@
             isFirstLoad = false;
           }
 
-          setIsLoading(false);
+          setDataReady(true);
         });
 
         return () => {
-          clearTimeout(loadingTimer);
+          clearTimeout(minimumLoadingTimer);
+          clearTimeout(maximumLoadingTimer);
           unsubscribeVotes();
           unsubscribeOrders();
           unsubscribeStage();
         };
       }, []);
+
+      useEffect(() => {
+        if (canHideLoading && dataReady) {
+          setIsLoading(false);
+        }
+      }, [canHideLoading, dataReady]);
 
       const forceResetToNewRestaurants = async () => {
         const qSnapshot = await getDocs(collection(db, "systemState"));
@@ -438,7 +472,7 @@
 
             <div className="logo-crop-box">
               <img
-                src="./logo-full.png"
+                src="./logo192.png"
                 alt="todayeatmudho Logo"
                 className="logo-crop-img"
               />
