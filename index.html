@@ -34,6 +34,7 @@
     }
 
     .app-content {
+      padding-top: 0.85rem;
       background:
         radial-gradient(circle at 50% 0%, rgba(247, 217, 0, 0.12), transparent 32%),
         linear-gradient(180deg, #ffffff 0%, #fffaf0 48%, #ffffff 100%);
@@ -77,6 +78,21 @@
       box-shadow:
         0 16px 34px rgba(31, 41, 55, 0.12),
         inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    }
+
+    .result-modal {
+      animation: modalRise 0.32s cubic-bezier(.2, .8, .2, 1) both;
+      box-shadow:
+        0 22px 56px rgba(17, 24, 39, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    }
+
+    .result-card {
+      background:
+        linear-gradient(135deg, rgba(236, 253, 245, 0.9), rgba(255, 251, 235, 0.78));
+      box-shadow:
+        0 10px 20px rgba(16, 185, 129, 0.09),
+        inset 0 1px 0 rgba(255, 255, 255, 0.92);
     }
 
     .animate-pop {
@@ -169,14 +185,25 @@
       }
     }
 
+    @keyframes modalRise {
+      0% {
+        opacity: 0;
+        transform: translateY(16px) scale(0.96);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
     @media (max-width: 420px) {
       .logo-crop-box {
-        height: 122px;
+        height: 104px;
       }
 
       .logo-crop-img {
-        width: 12.85rem;
-        transform: translate(-0.6rem, -0.1rem);
+        width: 11.65rem;
+        transform: translate(-0.7rem, -0.08rem);
       }
 
       .identity-pill {
@@ -203,6 +230,7 @@
 
     @media (prefers-reduced-motion: reduce) {
       .restaurant-card,
+      .result-modal,
       .animate-pop,
       .loading-logo,
       .loading-dot {
@@ -695,29 +723,42 @@
           <div className="w-full flex flex-col flex-1">
 
             {globalNotification && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-xl border border-gray-100">
-                  <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-                    📢
-                  </div>
+              <div className="fixed inset-0 bg-black/55 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                <div className="result-modal bg-white rounded-[1.6rem] p-4 w-full max-w-[21.5rem] text-center border border-white/80">
+                  <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-[11px] font-black text-emerald-700">
+                    <span>🏆</span>
+                    <span>投票完成</span>
+                  </span>
 
-                  <h3 className="text-xl font-bold text-gray-800">
-                    投票結果公布！
+                  <h3 className="text-[22px] font-black text-gray-900 mt-3 tracking-tight leading-tight">
+                    今日食呢間
                   </h3>
 
-                  <p className="text-emerald-600 font-black text-lg mt-2 bg-emerald-50 py-2 px-4 rounded-xl inline-block">
-                    {globalNotification}
-                  </p>
+                  <div className="result-card mt-3 rounded-2xl px-3.5 py-3 text-center border border-emerald-100/70">
+                    <p className="text-[10px] font-black text-emerald-700 tracking-wider">
+                      今日精選餐廳
+                    </p>
 
-                  <p className="text-xs text-gray-400 mt-3">
-                    快啲去打開 KeeTa 睇餐牌落單啦！🍱
+                    <p className="text-[17px] font-black text-gray-900 leading-tight mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                      {globalNotification.replace("今日精選餐廳：", "")}
+                    </p>
+                  </div>
+
+                  <p className="text-[12px] text-gray-500 mt-3 leading-relaxed">
+                    投票結果已公布，可以打開 Keeta 餐牌落單。
                   </p>
 
                   <button
-                    onClick={() => setGlobalNotification(null)}
-                    className="w-full mt-5 py-3 bg-gray-900 text-white font-bold rounded-xl text-sm shadow-md hover:bg-black transition-all"
+                    onClick={() => {
+                      setGlobalNotification(null);
+
+                      if (winner && winner.menuUrl) {
+                        window.open(winner.menuUrl, "_blank", "noopener,noreferrer");
+                      }
+                    }}
+                    className="pressable w-full mt-4 h-[52px] bg-gray-900 text-white font-black rounded-2xl text-sm shadow-lg hover:bg-black transition-all"
                   >
-                    收到，即刻落單！ 🚀
+                    {winner && winner.menuUrl ? "打開餐牌" : "知道了"}
                   </button>
                 </div>
               </div>
@@ -743,7 +784,7 @@
                 <div className="space-y-4 flex-1 flex flex-col">
                   <div className="text-center my-1">
                     <span className="stage-badge bg-gray-900 text-white text-[11px] font-black px-3 py-1.5 rounded-full">
-                      第一階段：今日食邊間？
+                      喂喂喂，今日食咩好
                     </span>
 
                     {userName && (
@@ -768,7 +809,7 @@
                         <div
                           key={r.id}
                           style={{ animationDelay: `${index * 0.05}s` }}
-                          className={`restaurant-card pressable flex bg-white border p-3 rounded-[1.35rem] duration-200 ${
+                          className={`restaurant-card pressable flex bg-white border p-2.5 rounded-[1.2rem] duration-200 ${
                             Array.isArray(r.voters) && r.voters.includes(userName)
                               ? "border-amber-400 ring-2 ring-amber-100"
                               : "border-gray-100"
@@ -777,28 +818,26 @@
                           <img
                             src={r.imgUrl}
                             alt={r.name}
-                            className="w-[6.35rem] h-[6.35rem] object-cover rounded-2xl flex-shrink-0 border border-gray-100 shadow-inner"
+                            className="w-[5.8rem] h-[5.8rem] object-cover object-center rounded-2xl flex-shrink-0 border border-gray-100 bg-gray-50 shadow-inner"
                           />
 
                           <div className="flex-1 pl-3 flex flex-col justify-between">
                             <div>
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="font-black text-[15px] text-gray-900 block leading-tight">
-                                  {r.name}
-                                </span>
+                              <span className="font-black text-[15px] text-gray-900 block leading-tight pr-1">
+                                {r.name}
+                              </span>
 
-                                <span className="shrink-0 bg-gray-900 text-white text-[10px] font-black px-2 py-1 rounded-full leading-none">
-                                  {r.votes || 0}票
-                                </span>
-                              </div>
+                              <span className="text-[10px] font-black text-gray-500 mt-1 block">
+                                目前：{r.votes || 0} 票
+                              </span>
 
                               <a
                                 href={r.menuUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[11px] text-gray-700 font-black bg-amber-100/70 px-2.5 py-1 rounded-full mt-2 inline-flex items-center hover:bg-amber-200 transition-all"
+                                className="h-8 text-[11px] text-gray-800 font-black bg-amber-50 border border-amber-200/80 px-3 rounded-full mt-1.5 inline-flex items-center justify-center hover:bg-amber-100 transition-all shadow-sm"
                               >
-                                🔍 睇 KeeTa 餐牌 ➔
+                                🔍 睇餐牌 →
                               </a>
                             </div>
 
@@ -813,7 +852,7 @@
 
                               <button
                                 onClick={() => handleVote(r.id, r.votes, r.voters)}
-                                className={`px-3.5 py-2 text-xs font-black rounded-full transition-all ${
+                                className={`px-4 py-2 text-xs font-black rounded-full transition-all shadow-sm ${
                                   Array.isArray(r.voters) && r.voters.includes(userName)
                                     ? "bg-amber-500 text-white shadow-sm"
                                     : hasVoted
