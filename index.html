@@ -70,7 +70,6 @@
       const [restaurants, setRestaurants] = useState([]);
       const [hasVoted, setHasVoted] = useState(false);
       const [winner, setWinner] = useState(null);
-      const [orders, setOrders] = useState([]);
       const [name, setName] = useState("");
       const [food, setFood] = useState("");
       const [drink, setDrink] = useState("");
@@ -86,15 +85,6 @@
           setRestaurants(
             rData.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
           );
-        });
-
-        const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
-          const oData = snapshot.docs.map((docItem) => ({
-            id: docItem.id,
-            ...docItem.data()
-          }));
-
-          setOrders(oData);
         });
 
         let isFirstLoad = true;
@@ -124,7 +114,6 @@
 
         return () => {
           unsubscribeVotes();
-          unsubscribeOrders();
           unsubscribeStage();
         };
       }, []);
@@ -252,6 +241,8 @@
           timestamp: new Date()
         });
 
+        alert("已提交今日點餐");
+
         setName("");
         setFood("");
         setDrink("");
@@ -304,11 +295,11 @@
             </div>
           )}
 
-          <div className="bg-[#F7D900] px-6 py-8 flex justify-center">
+          <div className="bg-[#F7D900] px-6 py-6 flex justify-center">
             <img
               src="./logo192.png"
               alt="todayeatmudho Logo"
-              className="w-44 h-auto object-contain"
+              className="w-56 h-auto object-contain"
             />
           </div>
 
@@ -470,50 +461,9 @@
                   </button>
                 </form>
 
-                <div className="relative my-1">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-100"></div>
-                  </div>
-
-                  <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
-                    <span className="bg-white px-3 text-gray-400 font-medium">
-                      今日落單名單 ({orders.length})
-                    </span>
-                  </div>
-                </div>
-
-                <div className="max-h-48 overflow-y-auto space-y-2 flex-1 relative">
-                  {orders.map((order, index) => (
-                    <div
-                      key={order.id || index}
-                      className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-gray-200 transition-all duration-300 transform selection:bg-amber-100"
-                    >
-                      <div>
-                        <span className="text-sm font-bold text-gray-700 block">
-                          {order.name}
-                        </span>
-
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block font-medium ${
-                            order.drink
-                              ? "bg-orange-50 text-orange-600 border border-orange-100/60"
-                              : "bg-gray-50 text-gray-400"
-                          }`}
-                        >
-                          {order.drink ? `🥤 ${order.drink}` : "🚫 唔要飲品"}
-                        </span>
-                      </div>
-
-                      <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-100/40 px-3 py-1.5 rounded-xl">
-                        🍛 {order.food}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
                 <button
                   onClick={handleReset}
-                  className="w-full py-2 text-xs text-gray-300 hover:text-gray-400 text-center mt-1 transition-all"
+                  className="w-full py-2 text-xs text-gray-300 hover:text-gray-400 text-center mt-auto transition-all"
                 >
                   🔄 重設並開啟全新的一天
                 </button>
