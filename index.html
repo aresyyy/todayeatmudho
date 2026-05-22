@@ -14,12 +14,7 @@
 </head>
 <body class="min-h-screen flex flex-col items-center py-6 px-4 selection:bg-amber-100">
 
-  <div id="root" class="w-full max-w-md bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[680px] flex flex-col">
-    <div class="flex-1 flex flex-col items-center justify-center p-6 text-gray-400">
-      <div class="animate-spin text-3xl mb-2">🍱</div>
-      <p class="text-sm">外賣神器正在注入高級視覺效果...</p>
-    </div>
-  </div>
+  <div id="root" class="w-full max-w-md bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[680px] flex flex-col animate-pop"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -49,11 +44,13 @@
       const [food, setFood] = useState('');
       const [drink, setDrink] = useState('');
       const [globalNotification, setGlobalNotification] = useState(null);
+      const [isLoading, setIsLoading] = useState(true); // 新增加載狀態
 
       useEffect(() => {
         const unsubscribeVotes = onSnapshot(collection(db, "restaurants"), (snapshot) => {
           const rData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setRestaurants(rData.sort((a,b) => (a.sortOrder || 0) - (b.sortOrder || 0)));
+          setIsLoading(false); // 收到數據，解除加載
         });
 
         const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snapshot) => {
@@ -82,6 +79,7 @@
       }, []);
 
       const forceResetToNewRestaurants = async () => {
+        setIsLoading(true);
         const qSnapshot = await getDocs(collection(db, "systemState"));
         for (let d of qSnapshot.docs) { await deleteDoc(doc(db, "systemState", d.id)); }
         await addDoc(collection(db, "systemState"), { stage: 'vote', winner: null });
@@ -98,6 +96,7 @@
           { name: '🇯🇵 阪神', votes: 0, voters: [], sortOrder: 3, menuUrl: 'https://url.mykeeta.com/uUdS4oez', imgUrl: 'https://images.unsplash.com/photo-1611143669185-af224c5e3252?w=500' }
         ];
         for (let r of defaultList) { await addDoc(collection(db, "restaurants"), r); }
+        setIsLoading(false);
       };
 
       const handleVote = async (id, currentVotes, currentVoters = []) => {
@@ -145,9 +144,22 @@
         setHasVoted(false);
       };
 
+      // 🚨 如果正在加載且雲端真的全空，直接提供緊急初始化按鈕，防止卡死
+      if (isLoading && restaurants.length === 0) {
+        return (
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[400px] flex flex-col items-center justify-center p-6 text-center">
+            <div className="animate-bounce text-4xl mb-4">🍱</div>
+            <h2 className="text-lg font-bold text-gray-800">歡迎使用全新大廠視覺版！</h2>
+            <p className="text-xs text-gray-400 mt-1 mb-6">因為你手動清空了雲端，請點擊下方按鈕注入金銘、凝香居、阪神新數據：</p>
+            <button onClick={forceResetToNewRestaurants} className="px-6 py-3 bg-amber-500 text-white rounded-xl font-bold shadow-md hover:bg-amber-600 transition-all">
+              🚀 一鍵生成橫向清單新餐廳
+            </button>
+          </div>
+        );
+      }
+
       return (
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[680px] flex flex-col animate-pop">
-          
+        <div className="w-full flex flex-col flex-1">
           {globalNotification && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-xl border border-gray-100">
@@ -172,17 +184,12 @@
                 <div className="text-center my-1">
                   <span className="bg-amber-50 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-100/60">第一階段：今日食邊間？</span>
                 </div>
-                
-                {restaurants.length === 0 && (
-                  <button onClick={forceResetToNewRestaurants} className="w-full py-3.5 bg-red-500 text-white rounded-xl font-bold">⚠️ 點擊初始化新餐廳</button>
-                )}
 
                 <div className="space-y-3 flex-1">
                   {restaurants.map(r => (
                     r && r.name ? (
                       <div key={r.id} className="flex bg-white border border-gray-100 p-3 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200">
                         <img src={r.imgUrl} alt={r.name} className="w-24 h-24 object-cover rounded-xl flex-shrink-0 border border-gray-50 shadow-inner" />
-                        
                         <div className="flex-1 pl-3 flex flex-col justify-between">
                           <div>
                             <span className="font-extrabold text-base text-gray-800 block leading-tight">{r.name}</span>
@@ -190,7 +197,6 @@
                               🔍 睇 KeeTa 餐牌 ➔
                             </a>
                           </div>
-
                           <div className="flex items-end justify-between mt-2">
                             <div className="flex flex-col">
                               <span className="text-[11px] text-gray-400">目前票數: <strong className="text-amber-600 text-xs font-black">{r.votes || 0}</strong> 票</span>
@@ -207,7 +213,6 @@
                     ) : null
                   ))}
                 </div>
-
                 <button onClick={handleEndVote} className="w-full mt-auto py-3.5 bg-gray-950 hover:bg-black text-white font-bold rounded-xl text-sm transition-all shadow-md tracking-wider">結束投票 ➔</button>
               </div>
             )}
@@ -216,7 +221,6 @@
               <div className="space-y-4 flex-1 flex flex-col">
                 <div className="text-center">
                   <span className="bg-emerald-50 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-100/60">第二階段：開飯落單</span>
-                  
                   <div className="flex items-center bg-emerald-50/40 border border-emerald-100 p-3 rounded-2xl mt-3 shadow-sm">
                     <img src={winner.imgUrl} alt={winner.name} className="w-14 h-14 object-cover rounded-xl border border-white shadow-sm" />
                     <div className="pl-3 text-left">
@@ -224,7 +228,6 @@
                       <h2 className="text-base font-black text-gray-800 leading-tight">{winner.name}</h2>
                     </div>
                   </div>
-
                   <a href={winner.menuUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-full text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 py-3.5 rounded-xl mt-3 shadow-md transition-all tracking-wide">🟢 打開 KeeTa 睇餐牌落單 ➔</a>
                 </div>
 
